@@ -1,5 +1,6 @@
 import { onMount } from 'svelte';
 import { writable } from 'svelte/store';
+import { spring } from 'svelte/motion';
 
 function sleep(duration = 3000) {
 	return new Promise((resolve) => setTimeout(resolve, duration));
@@ -37,6 +38,23 @@ export function onRefresh(
 		let startY: number = 0;
 		let touchId: number = -1;
 
+		const offset = spring<number>(0);
+
+		// link offset to css properties
+		offset.subscribe((val) => {
+			requestAnimationFrame(() => {
+				pullToRefresh.style.setProperty('--offset', `${val}px`);
+			});
+		});
+
+		// link angle to css properties
+		const angle = spring<number>(0);
+		angle.subscribe((val) => {
+			requestAnimationFrame(() => {
+				pullToRefresh.style.setProperty('--angle', `${val}deg`);
+			});
+		});
+
 		function onTouchStart(e: TouchEvent) {
 			// return if another touch is already registered for pull to refresh
 			if (touchId > -1) return;
@@ -53,14 +71,16 @@ export function onRefresh(
 
 			const distance = touch.screenY - startY;
 			shouldRefresh = distance >= thresholdDistance;
+			// return if swiping up
+			if (distance < 0) return;
+			scrollArea.style.overflowY = 'hidden';
 
-			// update styles
-			const offset = Math.min(distance, thresholdDistance);
-			pullToRefresh.style.setProperty('--offset', `${offset / 2}px`);
-			pullToRefresh.style.setProperty('--angle', `${offset}deg`);
+			offset.set(Math.min(distance, thresholdDistance) / 2);
+			angle.set(Math.min(distance, thresholdDistance));
 		}
 
-		async function onTouchEnd(e: TouchEvent) {
+		function onTouchEnd(e: TouchEvent) {
+			scrollArea.style.overflowY = 'auto';
 			// needed so this doesn't trigger if some other touch ended
 			const touch = Array.from(e.changedTouches).find((t) => t.identifier === touchId);
 			if (!touch) return;
@@ -72,29 +92,22 @@ export function onRefresh(
 			if (shouldRefresh) {
 				refreshing.set(true);
 				onRefresh(refreshing);
+			}
 
-				// create a proxy value for the store to avoid using get(refreshing) in while loop
-				let isRefreshing: boolean = true;
-				refreshing.subscribe((state) => (isRefreshing = state));
+			// create a proxy value for the store to avoid using get(refreshing) in while loop
+			let isRefreshing: boolean = true;
+			refreshing.subscribe((state) => (isRefreshing = state));
 
-				// spin the loader while refreshing
-				while (isRefreshing) {
-					const angle = +pullToRefresh.style.getPropertyValue('--angle').replace('deg', '');
-					pullToRefresh.style.setProperty('--angle', `${angle + 2}deg`);
-					await sleep(1);
+			// spin the loader while refreshing
+			function spin() {
+				angle.update(($angle) => $angle + 5);
+				if (isRefreshing) requestAnimationFrame(spin);
+				else {
+					offset.set(0);
+					angle.set(0);
 				}
 			}
-
-			// return spinner behind navbar
-			let offset = +pullToRefresh.style.getPropertyValue('--offset').replace('px', '') * 2;
-			while (offset > 0) {
-				pullToRefresh.style.setProperty('--offset', `${offset / 2}px`);
-				pullToRefresh.style.setProperty('--angle', `${offset}deg`);
-				offset = Math.max(0, offset - 5);
-				await sleep(1);
-			}
-			pullToRefresh.style.removeProperty('--offset');
-			pullToRefresh.style.removeProperty('--angle');
+			requestAnimationFrame(spin);
 		}
 
 		scrollArea?.addEventListener('touchstart', onTouchStart);
