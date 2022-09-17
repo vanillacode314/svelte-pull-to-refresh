@@ -41,7 +41,7 @@ export function onRefresh(
 			// return if another touch is already registered for pull to refresh
 			if (touchId > -1) return;
 			const touch = e.touches[0];
-			startY = touch.clientY;
+			startY = touch.clientY + scrollArea.scrollTop;
 			touchId = touch.identifier;
 		}
 
