@@ -1,5 +1,5 @@
 import { onMount } from 'svelte';
-import { get, writable } from 'svelte/store';
+import { writable } from 'svelte/store';
 
 function sleep(duration = 3000) {
 	return new Promise((resolve) => setTimeout(resolve, duration));
@@ -20,9 +20,13 @@ export function onRefresh(
 		onRefresh
 	}: Opts = { onRefresh() {} }
 ) {
+	// this represents refreshing state
 	const refreshing = writable<boolean>(false);
+
+	// register touch handlers
 	onMount(() => {
-		let doRefresh: boolean = false;
+		// is true if threshold distance swiped else false used to figure out if a refresh is needed on touchend
+		let shouldRefresh: boolean = false;
 
 		const scrollArea = document.getElementById(scrollAreaId);
 		const pullToRefresh = document.getElementById(pullToRefreshId);
@@ -33,40 +37,55 @@ export function onRefresh(
 		let startY: number = 0;
 		let touchId: number = -1;
 
-		scrollArea?.addEventListener('touchstart', (e: TouchEvent) => {
+		function onTouchStart(e: TouchEvent) {
+			// return if another touch is already registered for pull to refresh
 			if (touchId > -1) return;
 			const touch = e.touches[0];
 			startY = touch.clientY;
 			touchId = touch.identifier;
-		});
+		}
 
-		scrollArea?.addEventListener('touchmove', (e: TouchEvent) => {
+		function onTouchMove(e: TouchEvent) {
 			// pull to refresh should only trigger if user is at top of the scroll area
 			if (scrollArea.scrollTop > 0) return;
 			const touch = Array.from(e.changedTouches).find((t) => t.identifier === touchId);
 			if (!touch) return;
 
 			const distance = touch.clientY - startY;
-			doRefresh = distance >= thresholdDistance;
+			shouldRefresh = distance >= thresholdDistance;
 
 			// update styles
 			const offset = Math.min(distance, thresholdDistance);
 			pullToRefresh.style.setProperty('--offset', `${offset / 2}px`);
 			pullToRefresh.style.setProperty('--angle', `${offset}deg`);
-		});
+		}
 
-		scrollArea?.addEventListener('touchend', async () => {
-			if (doRefresh) {
+		async function onTouchEnd(e: TouchEvent) {
+			// needed so this doesn't trigger if some other touch ended
+			const touch = Array.from(e.changedTouches).find((t) => t.identifier === touchId);
+			if (!touch) return;
+
+			// reset touchId
+			touchId = -1;
+
+			// run callback if refresh needed
+			if (shouldRefresh) {
 				refreshing.set(true);
 				onRefresh(refreshing);
-				while (get(refreshing)) {
+
+				// create a proxy value for the store to avoid using get(refreshing) in while loop
+				let isRefreshing: boolean = true;
+				refreshing.subscribe((state) => (isRefreshing = state));
+
+				// spin the loader while refreshing
+				while (isRefreshing) {
 					const angle = +pullToRefresh.style.getPropertyValue('--angle').replace('deg', '');
 					pullToRefresh.style.setProperty('--angle', `${angle + 2}deg`);
 					await sleep(1);
 				}
 			}
-			touchId = -1;
 
+			// return spinner behind navbar
 			let offset = +pullToRefresh.style.getPropertyValue('--offset').replace('px', '') * 2;
 			while (offset > 0) {
 				pullToRefresh.style.setProperty('--offset', `${offset / 2}px`);
@@ -76,7 +95,14 @@ export function onRefresh(
 			}
 			pullToRefresh.style.removeProperty('--offset');
 			pullToRefresh.style.removeProperty('--angle');
-		});
+		}
+
+		scrollArea?.addEventListener('touchstart', onTouchStart);
+		scrollArea?.addEventListener('touchmove', onTouchMove);
+		scrollArea?.addEventListener('touchend', onTouchEnd);
+		scrollArea?.addEventListener('touchcancel', onTouchEnd);
 	});
+
+	// return refreshing state store
 	return refreshing;
 }
