@@ -1,7 +1,7 @@
 {
 	"name": "pull-to-refresh",
 	"version": "0.0.1",
-	"author": "Raqueebuddin Aziz"
+	"author": "Raqueebuddin Aziz",
 	"license": "MIT",
 	"scripts": {
 		"dev": "vite dev",
