@@ -71,9 +71,9 @@ export function onRefresh(
 
 			const distance = touch.screenY - startY;
 			shouldRefresh = distance >= thresholdDistance;
-			// return if swiping up
-			if (distance < 0) return;
-			scrollArea.style.overflowY = 'hidden';
+			if (distance > 0) {
+				scrollArea.style.overflowY = 'hidden';
+			}
 
 			offset.set(Math.min(distance, thresholdDistance) / 2);
 			angle.set(Math.min(distance, thresholdDistance));
