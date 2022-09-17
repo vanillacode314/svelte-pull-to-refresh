@@ -41,7 +41,7 @@ export function onRefresh(
 			// return if another touch is already registered for pull to refresh
 			if (touchId > -1) return;
 			const touch = e.touches[0];
-			startY = touch.clientY + scrollArea.scrollTop;
+			startY = touch.screenY + scrollArea.scrollTop;
 			touchId = touch.identifier;
 		}
 
@@ -51,7 +51,7 @@ export function onRefresh(
 			const touch = Array.from(e.changedTouches).find((t) => t.identifier === touchId);
 			if (!touch) return;
 
-			const distance = touch.clientY - startY;
+			const distance = touch.screenY - startY;
 			shouldRefresh = distance >= thresholdDistance;
 
 			// update styles
