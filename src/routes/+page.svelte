@@ -1,16 +1,14 @@
 <script lang="ts">
-	import type { Writable } from 'svelte/store';
-
 	import '../style.css';
 	import { onRefresh } from './mountHooks';
 
-	const refreshing = onRefresh({ onRefresh: refresh });
-
-	function refresh(refreshing: Writable<boolean>) {
-		setTimeout(() => {
-			refreshing.set(false);
-		}, 3000);
-	}
+	const refreshing = onRefresh({
+		callback(state) {
+			setTimeout(() => {
+				state.set(false);
+			}, 3000);
+		}
+	});
 </script>
 
 <div class="container">
